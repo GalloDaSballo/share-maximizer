@@ -6,36 +6,64 @@ import {BeforeAfter} from "./BeforeAfter.sol";
 import {Properties} from "./Properties.sol";
 import {vm} from "@chimera/Hevm.sol";
 
-abstract contract TargetFunctions is
-    BaseTargetFunctions,
-    Properties,
-    BeforeAfter
-{
-    function counter_increment() public {
-        counter.increment();
+abstract contract TargetFunctions is BaseTargetFunctions, Properties, BeforeAfter {
+    uint256 maxId;
+
+    function troveManager_mockInterest(uint256 newAmt) public {
+        tm.mockInterest(newAmt);
     }
 
-    function counter_setNumber1(uint256 newNumber) public {
-        // example assertion test replicating testFuzz_SetNumber
-        try counter.setNumber(newNumber) {
-            if (newNumber != 0) {
-                t(counter.number() == newNumber, "number != newNumber");
+    function troveManager_mockRedeem(uint256 idEntropy, uint256 amt) public {
+        uint256 id = idEntropy % maxId + 1;
+
+        tm.mockRedeem(id, amt);
+    }
+
+    function troveManager_onOpenTroveAndJoinBatch(uint256 newDebt) public {
+        tm.onOpenTroveAndJoinBatch(newDebt);
+        maxId++;
+    }
+
+    // TODO: Make it a b4 after
+    function troveManager_increaseDebt_withCheck(uint256 idEntropy, uint256 newDebt) public {
+        uint256 id = idEntropy % maxId + 1;
+
+        uint256 debtB4 = tm.totalBatchDebt();
+        uint256 sharesBefore = tm.totalDebtShares();
+        tm.increaseDebt(id, newDebt);
+
+        if (
+            sharesBefore == tm.totalDebtShares() // No new shares
+        ) {
+            if(debtB4 != tm.totalBatchDebt()) {
+                uint256 delta = tm.totalBatchDebt() > debtB4 ? tm.totalBatchDebt()  - debtB4  : debtB4 - tm.totalBatchDebt();
+                if(delta > maxValue){
+                    maxValue = delta;
+                }
             }
-        } catch {
-            t(false, "setNumber reverts");
         }
     }
 
-    function counter_setNumber2(uint256 newNumber) public {
-        // same example assertion test as counter_setNumber1 using ghost variables
-        __before();
+    function troveManager_closeTrove(uint256 idEntropy) public {
+        uint256 id = idEntropy % maxId + 1;
+        tm.closeTrove(id);
+    }
 
-        counter.setNumber(newNumber);
+    uint256 maxValue;
 
-        __after();
+    function optimize_forgivenDebt() public returns (int256) {
+        return int256(maxValue);
+    }
 
-        if (newNumber != 0) {
-            t(_after.counter_number == newNumber, "number != newNumber");
+
+    // TODO Once we add remove
+    function check_global() public {
+        if (tm.totalDebtShares() == 0) {
+            t(tm.totalBatchDebt() == 0, "Not Debt stuck"); 
         }
+    }
+
+    function optimize_ppfs() public returns (int256) {
+        return int256(tm.totalBatchDebt()) * int256(1e18) / int256(tm.totalDebtShares());
     }
 }

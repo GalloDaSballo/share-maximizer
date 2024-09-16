@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {BaseSetup} from "@chimera/BaseSetup.sol";
-import "src/Counter.sol";
+import "src/TroveManager.sol";
 
 abstract contract Setup is BaseSetup {
-    Counter counter;
+    TroveManager tm;
 
     function setup() internal virtual override {
-        counter = new Counter();
+        tm = new TroveManager();
     }
 }
